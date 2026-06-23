@@ -46,15 +46,15 @@
             </div>
         </div>
 
-        <!-- 問答 UI (已放大一倍) -->
-        <div id="triviaUI" class="absolute bottom-10 md:bottom-20 left-1/2 transform -translate-x-1/2 glass-panel p-12 md:p-16 rounded-[2.5rem] flex-col items-center pointer-events-auto hidden transition-all duration-300 z-50 border-2 border-cyan-500 w-[95%] max-w-3xl opacity-0 translate-y-10">
+        <!-- 問答 UI (已修改為螢幕正中央置中，並採用縮放動畫) -->
+        <div id="triviaUI" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 glass-panel p-12 md:p-16 rounded-[2.5rem] flex-col items-center pointer-events-auto hidden transition-all duration-300 z-50 border-2 border-cyan-500 w-[95%] max-w-3xl opacity-0 scale-90">
             <div class="text-cyan-300 font-bold mb-4 text-lg md:text-2xl flex justify-between w-full">
                 <span>🛰️ 衛星知識問答</span>
                 <span class="text-yellow-400 animate-pulse">答對 +10分 (碰觸掉落選項作答)</span>
             </div>
             <p id="triviaQuestion" class="text-2xl md:text-4xl font-extrabold text-white mb-10 text-center leading-relaxed"></p>
             <!-- 移除了原本的按鈕區域 -->
-            <!-- 問答回饋層 (已放大一倍) -->
+            <!-- 問答回饋層 (已同步置中) -->
             <div id="triviaFeedback" class="absolute inset-0 flex justify-center items-center rounded-[2.5rem] bg-black bg-opacity-90 hidden backdrop-blur-sm z-10">
                 <span id="triviaFeedbackText" class="text-4xl md:text-6xl font-extrabold"></span>
             </div>
@@ -105,6 +105,10 @@
         let fallingObjects = []; // 存儲畫面中的掉落物
         let floatingTexts = []; // 存儲飄浮文字特效
         
+        // --- 載入手部判定點回收圖片 ---
+        const handImage = new Image();
+        handImage.src = "./recycle.png";
+
         // --- 載入本地真實衛星圖片 ---
         const satelliteImages = {};
         
@@ -209,10 +213,11 @@
                 const palm = landmarks[9]; 
                 
                 // 將 MediaPipe 的正規化座標轉換為 Canvas 的像素座標
-                // 注意：因為畫面是水平鏡像反轉的，所以 X 軸需要特殊計算
+                // 注意：因為畫面是水平鏡像反轉的，所以 X 軸需要特殊計算。
+                // 並且依據需求【取消上下移動，固定在底部 85% 位置】。
                 handPixelPos = {
                     x: canvas.width - (offsetX + (palm.x * drawWidth)),
-                    y: offsetY + (palm.y * drawHeight)
+                    y: canvas.height * 0.85
                 };
             } else {
                 handPixelPos = null;
@@ -302,7 +307,7 @@
             
             const triviaUI = document.getElementById('triviaUI');
             triviaUI.classList.remove('flex');
-            triviaUI.classList.add('hidden', 'opacity-0', 'translate-y-10');
+            triviaUI.classList.add('hidden', 'opacity-0', 'scale-90');
             
             updateHUD();
         }
@@ -414,7 +419,8 @@
             triviaUI.classList.add('flex');
             
             setTimeout(() => {
-                triviaUI.classList.remove('opacity-0', 'translate-y-10');
+                triviaUI.classList.remove('opacity-0', 'scale-90');
+                triviaUI.classList.add('opacity-100', 'scale-100');
             }, 50);
 
             const config = getLevelConfig(1);
@@ -466,7 +472,8 @@
             
             setTimeout(() => {
                 const triviaUI = document.getElementById('triviaUI');
-                triviaUI.classList.add('opacity-0', 'translate-y-10');
+                triviaUI.classList.remove('opacity-100', 'scale-100');
+                triviaUI.classList.add('opacity-0', 'scale-90');
                 setTimeout(() => {
                     triviaUI.classList.remove('flex');
                     triviaUI.classList.add('hidden');
@@ -512,6 +519,11 @@
 
             const baseRadius = Math.min(canvas.width, canvas.height) * 0.05;
             const handRadius = Math.min(canvas.width, canvas.height) * 0.12;
+
+            // 確保手部坐標始終鎖定在畫面底部的 85% 位置
+            if (handPixelPos) {
+                handPixelPos.y = canvas.height * 0.85;
+            }
 
             for (let i = fallingObjects.length - 1; i >= 0; i--) {
                 let obj = fallingObjects[i];
@@ -563,7 +575,8 @@
             if (!hasAnswersLeft && activeTrivia) {
                 activeTrivia = false;
                 const triviaUI = document.getElementById('triviaUI');
-                triviaUI.classList.add('opacity-0', 'translate-y-10');
+                triviaUI.classList.remove('opacity-100', 'scale-100');
+                triviaUI.classList.add('opacity-0', 'scale-90');
                 setTimeout(() => {
                     triviaUI.classList.remove('flex');
                     triviaUI.classList.add('hidden');
@@ -611,10 +624,14 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             if ((gameState === 'PLAYING' || gameState === 'MENU') && handPixelPos) {
+                // 確保繪製時手部坐標鎖定在畫面底部的 85% 位置
+                handPixelPos.y = canvas.height * 0.85;
+
                 const hx = handPixelPos.x;
                 const hy = handPixelPos.y;
                 const radius = Math.min(canvas.width, canvas.height) * 0.12;
 
+                // 畫光暈圈
                 ctx.beginPath();
                 ctx.arc(hx, hy, radius, 0, 2 * Math.PI);
                 ctx.fillStyle = gameState === 'PLAYING' ? 'rgba(0, 255, 200, 0.2)' : 'rgba(255, 255, 255, 0.1)';
@@ -623,10 +640,17 @@
                 ctx.strokeStyle = gameState === 'PLAYING' ? 'rgba(0, 255, 200, 0.8)' : 'rgba(255, 255, 255, 0.5)';
                 ctx.stroke();
 
-                ctx.font = `${radius * 0.8}px Arial`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('✋', hx, hy);
+                // 繪製上傳的 recycle.png 作為判定點
+                if (handImage.complete && handImage.naturalWidth > 0) {
+                    const imgSize = radius * 1.4; // 配合光圈的大小調整圖片尺寸
+                    ctx.drawImage(handImage, hx - imgSize / 2, hy - imgSize / 2, imgSize, imgSize);
+                } else {
+                    // 若圖片載入中或載入失敗，採用 ✋ 備用
+                    ctx.font = `${radius * 0.8}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('✋', hx, hy);
+                }
             }
 
             if (gameState === 'PLAYING') {
