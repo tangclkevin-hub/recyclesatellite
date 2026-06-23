@@ -46,17 +46,17 @@
             </div>
         </div>
 
-        <!-- 問答 UI -->
-        <div id="triviaUI" class="absolute bottom-10 md:bottom-20 left-1/2 transform -translate-x-1/2 glass-panel p-6 md:p-8 rounded-3xl flex-col items-center pointer-events-auto hidden transition-all duration-300 z-50 border border-cyan-500 w-[90%] max-w-lg opacity-0 translate-y-10">
-            <div class="text-cyan-300 font-bold mb-2 text-sm flex justify-between w-full">
+        <!-- 問答 UI (已放大一倍) -->
+        <div id="triviaUI" class="absolute bottom-10 md:bottom-20 left-1/2 transform -translate-x-1/2 glass-panel p-12 md:p-16 rounded-[2.5rem] flex-col items-center pointer-events-auto hidden transition-all duration-300 z-50 border-2 border-cyan-500 w-[95%] max-w-3xl opacity-0 translate-y-10">
+            <div class="text-cyan-300 font-bold mb-4 text-lg md:text-2xl flex justify-between w-full">
                 <span>🛰️ 衛星知識問答</span>
                 <span class="text-yellow-400 animate-pulse">答對 +10分 (碰觸掉落選項作答)</span>
             </div>
-            <p id="triviaQuestion" class="text-lg md:text-xl font-bold text-white mb-6 text-center leading-relaxed"></p>
+            <p id="triviaQuestion" class="text-2xl md:text-4xl font-extrabold text-white mb-10 text-center leading-relaxed"></p>
             <!-- 移除了原本的按鈕區域 -->
-            <!-- 問答回饋層 -->
-            <div id="triviaFeedback" class="absolute inset-0 flex justify-center items-center rounded-3xl bg-black bg-opacity-80 hidden backdrop-blur-sm z-10">
-                <span id="triviaFeedbackText" class="text-3xl font-bold"></span>
+            <!-- 問答回饋層 (已放大一倍) -->
+            <div id="triviaFeedback" class="absolute inset-0 flex justify-center items-center rounded-[2.5rem] bg-black bg-opacity-90 hidden backdrop-blur-sm z-10">
+                <span id="triviaFeedbackText" class="text-4xl md:text-6xl font-extrabold"></span>
             </div>
         </div>
 
@@ -102,13 +102,33 @@
         let timeLeft = GAME_DURATION;
         let lastTime = 0;
         let spawnTimer = 0;
-        let fallingObjects = []; // 存儲畫面中的掉落物 (原 satellites)
+        let fallingObjects = []; // 存儲畫面中的掉落物
         let floatingTexts = []; // 存儲飄浮文字特效
         
+        // --- 載入本地真實衛星圖片 ---
+        const satelliteImages = {};
+        
+        // 精準對應您上傳的 5 張圖片檔案名稱
+        const satImageUrls = {
+            1: "./satellite_40932.png", // 速度 1: 最慢、最大
+            2: "./satellite_40913.png", // 速度 2
+            3: "./satellite_40917.png", // 速度 3
+            4: "./satellite_40915.png", // 速度 4
+            5: "./satellite_40929.png"  // 速度 5: 最快、最小
+        };
+
+        for (let level in satImageUrls) {
+            let img = new Image();
+            // 【修復關鍵】：移除了 img.crossOrigin = "anonymous" 設定
+            // 這讓您在電腦上直接雙擊打開網頁 (file:// 協議) 時，能正常讀取同資料夾的圖片
+            img.src = satImageUrls[level];
+            satelliteImages[level] = img;
+        }
+
         // 題庫 (15條)
         const triviaQuestions = [
             { q: "世界上第一顆人造衛星是由美國發射的。", a: false },
-            { q: "GPS 導航系統依賴於地球軌道上的衛星。", a: true },
+            { q: "北斗導航系統依賴於地球軌道上的衛星。", a: true },
             { q: "通信衛星通常運行在地球同步軌道上。", a: true },
             { q: "衛星可以完全不受地球引力的影響。", a: false },
             { q: "月球是地球的天然衛星。", a: true },
@@ -189,7 +209,7 @@
                 const palm = landmarks[9]; 
                 
                 // 將 MediaPipe 的正規化座標轉換為 Canvas 的像素座標
-                // 注意：因為畫面是水平鏡像反轉的，所以 X 軸需要特殊計算 (canvas.width - ...)
+                // 注意：因為畫面是水平鏡像反轉的，所以 X 軸需要特殊計算
                 handPixelPos = {
                     x: canvas.width - (offsetX + (palm.x * drawWidth)),
                     y: offsetY + (palm.y * drawHeight)
@@ -210,7 +230,7 @@
                     });
                 } catch (e) {
                     console.warn('無法獲取前置鏡頭，嘗試獲取預設相機...', e);
-                    // 退而求其次，獲取任何可用的相機 (解決桌機找不到 'user' 鏡頭導致的 NotFoundError)
+                    // 退而求其次，獲取任何可用的相機 
                     stream = await navigator.mediaDevices.getUserMedia({
                         video: true
                     });
@@ -227,7 +247,6 @@
             } catch (err) {
                 alert('無法存取相機！請確保您的裝置有連接相機，且已授權瀏覽器使用相機權限。');
                 console.error('Camera Error:', err);
-                // 更新 UI 顯示錯誤狀態
                 const loadingElement = document.getElementById('loadingUI');
                 if (loadingElement) {
                     loadingElement.innerHTML = `
@@ -243,17 +262,14 @@
             if (video.readyState >= 2) {
                 await hands.send({image: video});
             }
-            // 使用 requestAnimationFrame 維持追蹤頻率
             requestAnimationFrame(processVideoToAI);
         }
 
         // --- 游戲邏輯 ---
 
-        // UI 切換輔助函數
         function showUI(id) {
             const el = document.getElementById(id);
             el.classList.remove('hidden');
-            // 延遲一點點移除 opacity-0 和 scale-95 以觸發 CSS 動畫
             setTimeout(() => {
                 el.classList.remove('opacity-0', 'scale-95');
                 el.classList.add('opacity-100', 'scale-100');
@@ -281,10 +297,9 @@
             spawnTimer = 0;
             lastTime = performance.now();
             last10sMark = Math.floor(GAME_DURATION / 10);
-            availableQuestions = [...triviaQuestions]; // 重置題庫
+            availableQuestions = [...triviaQuestions]; 
             activeTrivia = false;
             
-            // 確保問答 UI 處於隱藏狀態
             const triviaUI = document.getElementById('triviaUI');
             triviaUI.classList.remove('flex');
             triviaUI.classList.add('hidden', 'opacity-0', 'translate-y-10');
@@ -295,7 +310,6 @@
         function endGame() {
             gameState = 'GAMEOVER';
             document.getElementById('hud').classList.add('hidden');
-            // 遊戲結束時隱藏可能正在顯示的問答題
             const triviaUI = document.getElementById('triviaUI');
             triviaUI.classList.remove('flex');
             triviaUI.classList.add('hidden');
@@ -306,7 +320,7 @@
 
         function returnToMenu() {
             hideUI('gameOverUI');
-            fallingObjects = []; // 清空殘留
+            fallingObjects = []; 
             floatingTexts = [];
             activeTrivia = false;
             showUI('menuUI');
@@ -317,7 +331,6 @@
             document.getElementById('hud-score').innerText = score;
             document.getElementById('hud-time').innerText = Math.ceil(timeLeft);
             
-            // 最後 10 秒時間變紅警告
             if (timeLeft <= 10) {
                 document.getElementById('hud-time').parentElement.classList.replace('text-yellow-400', 'text-red-500');
             } else {
@@ -326,20 +339,20 @@
         }
 
         function getLevelConfig(level) {
-            // 速度越快 (級別越高)，面積越小 (sizeMult 越小)，外觀也不同
+            // 速度越快 (級別越高)，面積越小 (sizeMult 越小)
             const configs = {
-                1: { dropTime: 10,  color: 'rgba(156, 163, 175, 0.6)', sizeMult: 1.5, emoji: '🛰️' }, // 最慢、最大
-                2: { dropTime: 8,   color: 'rgba(74, 222, 128, 0.6)',  sizeMult: 1.2, emoji: '📡' },
-                3: { dropTime: 6,   color: 'rgba(96, 165, 250, 0.6)',  sizeMult: 1.0, emoji: '🚀' },
-                4: { dropTime: 4.5, color: 'rgba(192, 132, 252, 0.6)', sizeMult: 0.8, emoji: '🛸' },
-                5: { dropTime: 3,   color: 'rgba(248, 113, 113, 0.8)', sizeMult: 0.6, emoji: '✨' }  // 最快、最小
+                1: { dropTime: 8,  color: 'rgba(156, 163, 175, 0.6)', sizeMult: 2, emoji: '🛰️' }, 
+                2: { dropTime: 6,   color: 'rgba(74, 222, 128, 0.6)',  sizeMult: 1.75, emoji: '🛰️' },
+                3: { dropTime: 5,   color: 'rgba(96, 165, 250, 0.6)',  sizeMult: 1.5, emoji: '🛰️' },
+                4: { dropTime: 4, color: 'rgba(192, 132, 252, 0.6)', sizeMult: 1.2, emoji: '🛰️' },
+                5: { dropTime: 2,   color: 'rgba(248, 113, 113, 0.8)', sizeMult: 1, emoji: '🛰️' }  
             };
             return configs[level];
         }
 
         const obstacleConfigs = [
-            { dropTime: 5, color: 'rgba(255, 100, 50, 0.6)', sizeMult: 1.3, emoji: '🪨', penalty: 5 }, // 隕石
-            { dropTime: 4, color: 'rgba(150, 150, 150, 0.6)', sizeMult: 1.5, emoji: '✈️', penalty: 5 }  // 飛機
+            { dropTime: 5, color: 'rgba(255, 100, 50, 0.6)', sizeMult: 1.3, emoji: '🪨', penalty: 5 }, 
+            { dropTime: 4, color: 'rgba(150, 150, 150, 0.6)', sizeMult: 1.5, emoji: '✈️', penalty: 5 }  
         ];
 
         function spawnObject() {
@@ -360,8 +373,8 @@
             }
 
             let level;
-            // 規則：前 30 秒只掉落 1-3 級。後 30 秒加入更快的。
-            if (timeLeft > 30) {
+            // 規則：前 40 秒只掉落 1-3 級。後 40 秒加入更快的。
+            if (timeLeft > 40) {
                 level = Math.floor(Math.random() * 3) + 1;
             } else {
                 level = Math.floor(Math.random() * 5) + 1;
@@ -377,7 +390,7 @@
                 level: level,
                 score: level,
                 speedY: speedY,
-                sizeMult: config.sizeMult,
+                sizeMult: config.sizeMult, // 此數值將被用於圖片自動縮放
                 color: config.color,
                 emoji: config.emoji
             });
@@ -387,7 +400,6 @@
         function showTrivia() {
             if (availableQuestions.length === 0) return;
             
-            // 隨機抽取一題
             const randomIndex = Math.floor(Math.random() * availableQuestions.length);
             const qObj = availableQuestions.splice(randomIndex, 1)[0];
             
@@ -401,36 +413,34 @@
             triviaUI.classList.remove('hidden');
             triviaUI.classList.add('flex');
             
-            // 延遲觸發顯示動畫
             setTimeout(() => {
                 triviaUI.classList.remove('opacity-0', 'translate-y-10');
             }, 50);
 
-            // 生成「是」與「否」的掉落物 (速度 1)
             const config = getLevelConfig(1);
             const speedY = 1.0 / config.dropTime;
-            const answerSizeMult = 1.5; // 稍微放大以方便看清和接取
+            const answerSizeMult = 4; 
 
             fallingObjects.push({
                 type: 'trivia_answer',
-                x: 0.25, // 左側掉落
+                x: 0.25, 
                 y: -0.1,
                 answerValue: true,
                 speedY: speedY,
                 sizeMult: answerSizeMult,
-                color: 'rgba(74, 222, 128, 0.8)', // 綠色
+                color: 'rgba(74, 222, 128, 0.8)',
                 emoji: '⭕',
                 text: '是'
             });
 
             fallingObjects.push({
                 type: 'trivia_answer',
-                x: 0.75, // 右側掉落
+                x: 0.75, 
                 y: -0.1,
                 answerValue: false,
                 speedY: speedY,
                 sizeMult: answerSizeMult,
-                color: 'rgba(248, 113, 113, 0.8)', // 紅色
+                color: 'rgba(248, 113, 113, 0.8)',
                 emoji: '❌',
                 text: '否'
             });
@@ -447,14 +457,13 @@
             if (userAnswer === currentTriviaAnswer) {
                 score += 10;
                 feedbackText.innerText = "答對了！ +10 分";
-                feedbackText.className = "text-3xl font-bold text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.8)]";
+                feedbackText.className = "text-4xl md:text-6xl font-bold text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.8)]";
                 updateHUD();
             } else {
                 feedbackText.innerText = "答錯了！ 不扣分";
-                feedbackText.className = "text-3xl font-bold text-red-400 drop-shadow-[0_0_10px_rgba(248,113,113,0.8)]";
+                feedbackText.className = "text-4xl md:text-6xl font-bold text-red-400 drop-shadow-[0_0_10px_rgba(248,113,113,0.8)]";
             }
             
-            // 延遲 1.5 秒後關閉問答視窗
             setTimeout(() => {
                 const triviaUI = document.getElementById('triviaUI');
                 triviaUI.classList.add('opacity-0', 'translate-y-10');
@@ -465,23 +474,20 @@
             }, 1500);
         }
 
-        // 添加飄浮文字特效
         function addFloatingText(text, x, y, color) {
             floatingTexts.push({
                 text: text,
                 x: x,
                 y: y,
                 color: color,
-                life: 1.0, // 存活 1 秒
-                speedY: -0.1 // 向上飄
+                life: 1.0, 
+                speedY: -0.1 
             });
         }
 
-        // 更新游戲數據邏輯
         function updateGame(deltaTime) {
             const dtSec = deltaTime / 1000;
 
-            // 時間倒數
             timeLeft -= dtSec;
             if (timeLeft <= 0) {
                 timeLeft = 0;
@@ -490,28 +496,23 @@
                 return;
             }
 
-            // 更新 HUD 顯示
             updateHUD();
 
-            // 檢查是否觸發問答題 (每 10 秒)
             const current10sMark = Math.floor(timeLeft / 10);
             if (current10sMark < last10sMark && current10sMark > 0) {
                 last10sMark = current10sMark;
                 showTrivia();
             }
 
-            // 生成新掉落物
             spawnTimer -= dtSec;
             if (spawnTimer <= 0) {
                 spawnObject();
                 spawnTimer = 0.8 + Math.random() * 0.7; 
             }
 
-            // 基礎接取半徑基準
             const baseRadius = Math.min(canvas.width, canvas.height) * 0.05;
             const handRadius = Math.min(canvas.width, canvas.height) * 0.12;
 
-            // 更新掉落物位置與碰撞偵測
             for (let i = fallingObjects.length - 1; i >= 0; i--) {
                 let obj = fallingObjects[i];
                 obj.y += obj.speedY * dtSec;
@@ -520,22 +521,20 @@
                 const objPixelY = obj.y * canvas.height;
                 const objActualRadius = baseRadius * obj.sizeMult;
 
-                // 如果有偵測到手部，判斷是否接住
                 if (handPixelPos) {
                     const dist = Math.hypot(objPixelX - handPixelPos.x, objPixelY - handPixelPos.y);
                     
-                    // 碰撞判定：手部碰撞核心 + 掉落物半徑
                     if (dist < handRadius * 0.6 + objActualRadius) {
                         if (obj.type === 'satellite') {
                             score += obj.score;
-                            addFloatingText(`+${obj.score}`, objPixelX, objPixelY, 'rgba(74, 222, 128, 1)'); // 綠字加分
+                            addFloatingText(`+${obj.score}`, objPixelX, objPixelY, 'rgba(74, 222, 128, 1)'); 
                             fallingObjects.splice(i, 1);
                             updateHUD();
                             continue;
                         } else if (obj.type === 'obstacle') {
                             score -= obj.penalty;
-                            if (score < 0) score = 0; // 防止負分
-                            addFloatingText(`-${obj.penalty}`, objPixelX, objPixelY, 'rgba(248, 113, 113, 1)'); // 紅字扣分
+                            if (score < 0) score = 0; 
+                            addFloatingText(`-${obj.penalty}`, objPixelX, objPixelY, 'rgba(248, 113, 113, 1)'); 
                             fallingObjects.splice(i, 1);
                             updateHUD();
                             continue;
@@ -547,14 +546,11 @@
                     }
                 }
 
-                // 掉出畫面底部，移除之
                 if (obj.y > 1.1) {
                     fallingObjects.splice(i, 1);
                 }
             }
 
-            // 處理選項清理邏輯
-            // 如果玩家已經作答 (activeTrivia 為 false)，清除另一個未被觸碰的選項
             if (!activeTrivia) {
                 for (let i = fallingObjects.length - 1; i >= 0; i--) {
                     if (fallingObjects[i].type === 'trivia_answer') {
@@ -563,7 +559,6 @@
                 }
             }
 
-            // 如果沒有選項殘留，且 activeTrivia 仍為 true (代表兩者都掉出畫面外，玩家錯過作答)
             const hasAnswersLeft = fallingObjects.some(o => o.type === 'trivia_answer');
             if (!hasAnswersLeft && activeTrivia) {
                 activeTrivia = false;
@@ -575,7 +570,6 @@
                 }, 300);
             }
 
-            // 更新飄浮文字特效
             for (let i = floatingTexts.length - 1; i >= 0; i--) {
                 floatingTexts[i].life -= dtSec;
                 floatingTexts[i].y += floatingTexts[i].speedY * canvas.height * dtSec;
@@ -587,10 +581,8 @@
 
         // --- 繪製畫布 ---
         function draw(deltaTime) {
-            // 1. 清空畫布
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 2. 繪製背景：相機畫面 (需計算以實現滿版填充與水平鏡像)
             if (video.videoWidth > 0 && video.videoHeight > 0) {
                 const videoRatio = video.videoWidth / video.videoHeight;
                 const canvasRatio = canvas.width / canvas.height;
@@ -609,25 +601,20 @@
                 }
 
                 ctx.save();
-                // 實現水平鏡像，讓玩家操作直覺
                 ctx.translate(canvas.width, 0);
                 ctx.scale(-1, 1);
-                // 繪製
                 ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
                 ctx.restore();
             }
 
-            // 3. 畫一層半透明黑色遮罩，讓游戲元素更清晰
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // 4. 無論是在主選單還是游戲中，都顯示手部追蹤光標（滿足：主頁背景鏡頭捕捉手掌位置）
             if ((gameState === 'PLAYING' || gameState === 'MENU') && handPixelPos) {
                 const hx = handPixelPos.x;
                 const hy = handPixelPos.y;
                 const radius = Math.min(canvas.width, canvas.height) * 0.12;
 
-                // 畫光暈圈
                 ctx.beginPath();
                 ctx.arc(hx, hy, radius, 0, 2 * Math.PI);
                 ctx.fillStyle = gameState === 'PLAYING' ? 'rgba(0, 255, 200, 0.2)' : 'rgba(255, 255, 255, 0.1)';
@@ -636,29 +623,27 @@
                 ctx.strokeStyle = gameState === 'PLAYING' ? 'rgba(0, 255, 200, 0.8)' : 'rgba(255, 255, 255, 0.5)';
                 ctx.stroke();
 
-                // 中心點畫一個手掌 Emoji
                 ctx.font = `${radius * 0.8}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText('✋', hx, hy);
             }
 
-            // 5. 繪製游戲中的掉落物與特效
             if (gameState === 'PLAYING') {
-                const baseRadius = Math.min(canvas.width, canvas.height) * 0.05; // 基礎視覺大小
+                const baseRadius = Math.min(canvas.width, canvas.height) * 0.05; 
 
                 fallingObjects.forEach(obj => {
                     const sx = obj.x * canvas.width;
                     const sy = obj.y * canvas.height;
-                    const currentRadius = baseRadius * obj.sizeMult; // 套用面積倍率
+                    const currentRadius = baseRadius * obj.sizeMult; // 此屬性完美繼承了前版的面積比例
 
-                    // 畫發光背景圈與外框（根據屬性決定形狀）
+                    // 畫發光背景圈與外框
                     ctx.beginPath();
                     if (obj.type === 'obstacle') {
-                        // 扣分物件：繪製帶有菱形尖刺的外框
-                        const spikes = 12; // 尖刺數量
-                        const outerRadius = currentRadius * 1.3; // 尖刺外圍半徑
-                        const innerRadius = currentRadius * 0.8; // 尖刺內部半徑
+                        // 扣分物件：遺失物、太空垃圾之菱形尖刺的外框
+                        const spikes = 12; 
+                        const outerRadius = currentRadius * 1.3; 
+                        const innerRadius = currentRadius * 0.8; 
                         
                         for (let k = 0; k < spikes * 2; k++) {
                             const radius = k % 2 === 0 ? outerRadius : innerRadius;
@@ -673,21 +658,30 @@
                         }
                         ctx.closePath();
                     } else {
-                        // 一般物件（衛星、問答選項）：繪製平滑圓形
+                        // 一般物件（衛星圖片護盾、問答選項）：繪製平滑圓形
                         ctx.arc(sx, sy, currentRadius, 0, 2 * Math.PI);
                     }
                     
-                    ctx.fillStyle = obj.color;
+                    // 針對衛星，我們將原本的顏色護盾大幅調淡，以確保真實的 PNG 圖片能夠清楚凸顯出來
+                    if (obj.type === 'satellite') {
+                        ctx.fillStyle = obj.color.replace('0.6', '0.15').replace('0.8', '0.2');
+                    } else {
+                        ctx.fillStyle = obj.color;
+                    }
                     ctx.fill();
                     
-                    // 邊框 (障礙物邊框加粗且為紅色)
                     ctx.lineWidth = obj.type === 'obstacle' ? 3 : 2;
-                    ctx.strokeStyle = obj.type === 'obstacle' ? 'rgba(255, 100, 100, 0.8)' : 'white';
+                    if (obj.type === 'obstacle') {
+                        ctx.strokeStyle = 'rgba(255, 100, 100, 0.8)';
+                    } else if (obj.type === 'satellite') {
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                    } else {
+                        ctx.strokeStyle = 'white';
+                    }
                     ctx.stroke();
 
-                    // 圖標與文字
+                    // 圖標、圖片與文字渲染
                     if (obj.type === 'trivia_answer') {
-                        // 問答選項顯示樣式
                         ctx.font = `${currentRadius * 0.8}px Arial`;
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
@@ -696,26 +690,54 @@
                         ctx.font = `bold ${currentRadius * 0.6}px Arial`;
                         ctx.fillStyle = 'white';
                         ctx.fillText(obj.text, sx, sy + currentRadius * 0.4);
-                    } else {
-                        // 一般掉落物顯示樣式
+
+                    } else if (obj.type === 'obstacle') {
                         ctx.font = `${currentRadius * 1.2}px Arial`;
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
                         ctx.fillText(obj.emoji, sx, sy);
-                    }
 
-                    // 畫出分數提示 (僅限衛星)
-                    if (obj.type === 'satellite') {
+                    } else if (obj.type === 'satellite') {
+                        
+                        // ===== 真實 PNG 圖片渲染核心 =====
+                        const img = satelliteImages[obj.level];
+                        
+                        // 確保圖片已成功載入且可用
+                        if (img && img.complete && img.naturalWidth > 0) {
+                            // 【等比例縮放修正】：計算圖片原始寬高比
+                            const ratio = img.naturalWidth / img.naturalHeight;
+                            let dw, dh;
+                            const maxDim = currentRadius * 2.8; // 基準最大邊長
+
+                            if (img.naturalWidth > img.naturalHeight) {
+                                // 寬圖：寬度設為最大，高度等比縮小
+                                dw = maxDim;
+                                dh = maxDim / ratio;
+                            } else {
+                                // 長圖：高度設為最大，寬度等比縮小
+                                dw = maxDim * ratio;
+                                dh = maxDim;
+                            }
+                            
+                            ctx.drawImage(img, sx - dw / 2, sy - dh / 2, dw, dh);
+                        } else {
+                            // 圖片載入失敗時的 Emoji 備案
+                            ctx.font = `${currentRadius * 1.2}px Arial`;
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(obj.emoji || '🛰️', sx, sy);
+                        }
+
+                        // 畫出分數提示 (往上推開以免遮住圖片)
                         ctx.font = `bold ${currentRadius * 0.5}px Arial`;
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-                        ctx.fillText(`${obj.score}分`, sx, sy - currentRadius * 1.5);
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                        ctx.fillText(`${obj.score}分`, sx, sy - currentRadius * 1.6);
                     }
                 });
 
-                // 繪製飄浮文字特效
                 floatingTexts.forEach(ft => {
                     ctx.save();
-                    ctx.globalAlpha = Math.max(0, ft.life); // 透明度隨時間漸隱
+                    ctx.globalAlpha = Math.max(0, ft.life); 
                     ctx.font = `bold ${baseRadius}px Arial`;
                     ctx.fillStyle = ft.color;
                     ctx.textAlign = 'center';
@@ -743,7 +765,6 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // 啟動程序
         startCamera();
 
     </script>
